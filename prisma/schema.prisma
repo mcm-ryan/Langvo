@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  LEARNER
+  TUTOR
+  BOTH
+}
+
+enum CallStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PointsTransactionType {
+  WEEKLY_GRANT
+  TIP_SENT
+  TIP_RECEIVED
+  ADMIN_ADJUSTMENT
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  emailVerified  DateTime?
+  image          String?
+  role           UserRole  @default(LEARNER)
+
+  nativeLanguage String?
+  targetLanguage String?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tutorProfile   TutorProfile?
+  accounts       Account[]
+  sessions       Session[]
+
+  callsAsLearner Call[]    @relation("LearnerCalls")
+  callsAsTutor   Call[]    @relation("TutorCalls")
+  pointsLedger   PointsLedger[]
+}
+
+model TutorProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  isApproved      Boolean  @default(false)
+  isAvailable     Boolean  @default(false)
+
+  teachingLanguages String[]
+
+  bio             String?
+  approvedAt      DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Call {
+  id              String     @id @default(cuid())
+
+  learnerId       String
+  learner         User       @relation("LearnerCalls", fields: [learnerId], references: [id])
+
+  tutorId         String
+  tutor           User       @relation("TutorCalls", fields: [tutorId], references: [id])
+
+  status          CallStatus @default(PENDING)
+
+  language        String
+
+  roomId          String?
+
+  startedAt       DateTime   @default(now())
+  endedAt         DateTime?
+  durationSeconds Int?
+
+  tipAmount       Int?
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  pointsTransactions PointsLedger[]
+}
+
+model PointsLedger {
+  id              String                 @id @default(cuid())
+
+  userId          String
+  user            User                   @relation(fields: [userId], references: [id])
+
+  amount          Int
+  type            PointsTransactionType
+
+  callId          String?
+  call            Call?                  @relation(fields: [callId], references: [id])
+
+  description     String?
+
+  expiresAt       DateTime?
+
+  createdAt       DateTime               @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
